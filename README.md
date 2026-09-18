@@ -1,4 +1,4 @@
-# fichero-printer
+# fichero-printer (Fork)
 
 Web GUI, Python CLI, and protocol documentation for the Fichero D11s thermal label printer.
 
@@ -49,7 +49,7 @@ One more reason to ditch the app and talk to the printer directly.
 
 ## Web GUI
 
-Try it at https://0xmh.github.io/fichero-printer/ - a full label designer with text, images, barcodes, QR codes, and drag-and-drop canvas editing. Built with Svelte 5 and Fabric.js, ported from the NiimBlue project (MIT).
+Try it at [https://0xmh.github.io/fichero-printer/ ](https://leonhuhn.github.io/fichero-printer/)- a full label designer with text, images, barcodes, QR codes, and drag-and-drop canvas editing. Built with Svelte 5 and Fabric.js, ported from the NiimBlue project (MIT).
 
 Click the Bluetooth icon, pair with the printer, and start designing. Labels save to browser localStorage. Export as JSON or PNG.
 
