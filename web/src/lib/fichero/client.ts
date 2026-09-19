@@ -113,42 +113,19 @@ export class FicheroClient extends TypedEventEmitter<ClientEventMap> {
 
     device.addEventListener("gattserverdisconnected", () => this.onDisconnected());
 
-    const maxAttempts = 8;
-    let lastError: Error | null = null;
+    const server = await device.gatt!.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    this.writeChar = await service.getCharacteristic(WRITE_CHAR_UUID);
+    this.notifyChar = await service.getCharacteristic(NOTIFY_CHAR_UUID);
+    await this.notifyChar.startNotifications();
+    this.notifyChar.addEventListener("characteristicvaluechanged", (e: Event) => this.onNotify(e));
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        if (!device.gatt!.connected) {
-          await device.gatt!.connect();
-        }
-        const deadline = Date.now() + 5000;
-        while (!device.gatt!.connected) {
-          if (Date.now() > deadline) throw new Error("GATT connection timed out");
-          await new Promise((r) => setTimeout(r, 100));
-        }
-        await new Promise((r) => setTimeout(r, 300));
-        if (!device.gatt!.connected) throw new Error("GATT server disconnected");
+    this.device = device;
 
-        const service = await device.gatt!.getPrimaryService(SERVICE_UUID);
-        this.writeChar = await service.getCharacteristic(WRITE_CHAR_UUID);
-        this.notifyChar = await service.getCharacteristic(NOTIFY_CHAR_UUID);
-        await this.notifyChar.startNotifications();
-        this.notifyChar.addEventListener("characteristicvaluechanged", (e: Event) => this.onNotify(e));
+    this.emit("connect", { info: { deviceName: device.name } });
 
-        this.device = device;
-        this.emit("connect", { info: { deviceName: device.name } });
-        await this.fetchPrinterInfo();
-        this.startHeartbeat();
-        return;
-      } catch (e) {
-        lastError = e as Error;
-        try { device.gatt!.disconnect(); } catch { /* ignore */ }
-        const wait = attempt < 2 ? 1000 : 2000;
-        await new Promise((r) => setTimeout(r, wait));
-      }
-    }
-
-    throw lastError ?? new Error("Failed to connect to GATT server");
+    await this.fetchPrinterInfo();
+    this.startHeartbeat();
   }
 
   disconnect(): void {
