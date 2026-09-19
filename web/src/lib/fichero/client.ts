@@ -113,18 +113,23 @@ export class FicheroClient extends TypedEventEmitter<ClientEventMap> {
 
     device.addEventListener("gattserverdisconnected", () => this.onDisconnected());
 
-    const maxAttempts = 5;
+    const maxAttempts = 8;
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
-        const server = await device.gatt!.connect();
+        if (!device.gatt!.connected) {
+          await device.gatt!.connect();
+        }
         const deadline = Date.now() + 5000;
         while (!device.gatt!.connected) {
           if (Date.now() > deadline) throw new Error("GATT connection timed out");
-          await new Promise((r) => setTimeout(r, 50));
+          await new Promise((r) => setTimeout(r, 100));
         }
-        const service = await server.getPrimaryService(SERVICE_UUID);
+        await new Promise((r) => setTimeout(r, 300));
+        if (!device.gatt!.connected) throw new Error("GATT server disconnected");
+
+        const service = await device.gatt!.getPrimaryService(SERVICE_UUID);
         this.writeChar = await service.getCharacteristic(WRITE_CHAR_UUID);
         this.notifyChar = await service.getCharacteristic(NOTIFY_CHAR_UUID);
         await this.notifyChar.startNotifications();
@@ -137,8 +142,9 @@ export class FicheroClient extends TypedEventEmitter<ClientEventMap> {
         return;
       } catch (e) {
         lastError = e as Error;
-        try { device.gatt?.disconnect(); } catch { /* ignore */ }
-        if (attempt < maxAttempts - 1) await new Promise((r) => setTimeout(r, 500));
+        try { device.gatt!.disconnect(); } catch { /* ignore */ }
+        const wait = attempt < 2 ? 1000 : 2000;
+        await new Promise((r) => setTimeout(r, wait));
       }
     }
 
