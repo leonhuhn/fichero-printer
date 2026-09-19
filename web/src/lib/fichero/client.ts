@@ -113,24 +113,36 @@ export class FicheroClient extends TypedEventEmitter<ClientEventMap> {
 
     device.addEventListener("gattserverdisconnected", () => this.onDisconnected());
 
-    const server = await device.gatt!.connect();
-    const conn_timeout = Date.now() + 20000;
-    while (!device.gatt!.connected) {
-      if (Date.now() > conn_timeout) throw new Error("GATT connection timed out");
-      await new Promise((r) => setTimeout(r, 50));
+    const maxAttempts = 5;
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const server = await device.gatt!.connect();
+        const deadline = Date.now() + 5000;
+        while (!device.gatt!.connected) {
+          if (Date.now() > deadline) throw new Error("GATT connection timed out");
+          await new Promise((r) => setTimeout(r, 50));
+        }
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        this.writeChar = await service.getCharacteristic(WRITE_CHAR_UUID);
+        this.notifyChar = await service.getCharacteristic(NOTIFY_CHAR_UUID);
+        await this.notifyChar.startNotifications();
+        this.notifyChar.addEventListener("characteristicvaluechanged", (e: Event) => this.onNotify(e));
+
+        this.device = device;
+        this.emit("connect", { info: { deviceName: device.name } });
+        await this.fetchPrinterInfo();
+        this.startHeartbeat();
+        return;
+      } catch (e) {
+        lastError = e as Error;
+        try { device.gatt?.disconnect(); } catch { /* ignore */ }
+        if (attempt < maxAttempts - 1) await new Promise((r) => setTimeout(r, 500));
+      }
     }
-    const service = await server.getPrimaryService(SERVICE_UUID);
-    this.writeChar = await service.getCharacteristic(WRITE_CHAR_UUID);
-    this.notifyChar = await service.getCharacteristic(NOTIFY_CHAR_UUID);
-    await this.notifyChar.startNotifications();
-    this.notifyChar.addEventListener("characteristicvaluechanged", (e: Event) => this.onNotify(e));
 
-    this.device = device;
-
-    this.emit("connect", { info: { deviceName: device.name } });
-
-    await this.fetchPrinterInfo();
-    this.startHeartbeat();
+    throw lastError ?? new Error("Failed to connect to GATT server");
   }
 
   disconnect(): void {
