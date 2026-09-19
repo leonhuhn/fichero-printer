@@ -114,6 +114,7 @@ export class FicheroClient extends TypedEventEmitter<ClientEventMap> {
     device.addEventListener("gattserverdisconnected", () => this.onDisconnected());
 
     const server = await device.gatt!.connect();
+    await device.gatt!.waitForServerStateChange("connected");
     const service = await server.getPrimaryService(SERVICE_UUID);
     this.writeChar = await service.getCharacteristic(WRITE_CHAR_UUID);
     this.notifyChar = await service.getCharacteristic(NOTIFY_CHAR_UUID);
